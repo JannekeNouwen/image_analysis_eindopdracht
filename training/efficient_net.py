@@ -39,25 +39,6 @@ def preprocess_data(image_size, train_path):
     return train_ds, val_ds
 
 def preprocess_test(image_size, eval_path):
-    x_test = []
-    y_test = []
-    labels = ["EOSINOPHIL", "LYMPHOCYTE", "MONOCYTE", "NEUTROPHIL"]
-
-    for label in labels:
-        for filename in os.listdir(f'{eval_path}{label}'):
-            if filename.split('.')[1] == "jpg":
-                img = cv2.imread(f'{eval_path}{label}/{filename}')
-                
-                # Spliting file names and storing the labels for image in list
-                y_test.append(label)
-                
-                # Resize all images to a specific shape
-                img = cv2.resize(img,image_size)
-                
-                x_test.append(img)
-    
-    # return np.array(x_test), np.array(y_test).astype("float32")
-
     eval_ds = tf.keras.preprocessing.image_dataset_from_directory(
         eval_path,
         seed=42,
@@ -98,9 +79,6 @@ def unfreeze(model: Model):
             trainable_flag = True
             layer.trainable = trainable_flag
 
-    # for layer in model.layers[0].layers:
-    #     print (layer.name, layer.trainable) 
-
     return model
 
 
@@ -114,19 +92,9 @@ def compile_model(model: Model, learning_rate) -> Model:
 
 
 def train(model: Model, train_ds, val_ds, epochs, save_dir, log_dir=None):
-    # os.makedirs(log_dir, exist_ok=True)
-
-    # tbCallBack = tf.keras.callbacks.TensorBoard(
-    #     log_dir = log_dir,
-    #     histogram_freq = 0,
-    #     write_graph = False,
-    #     write_images = False
-    # )
-
     history = model.fit(
         train_ds, 
         epochs=epochs, 
-        # callbacks=[tbCallBack], 
         validation_data=val_ds, 
         use_multiprocessing = True,
         workers = 11
@@ -142,7 +110,6 @@ def train(model: Model, train_ds, val_ds, epochs, save_dir, log_dir=None):
     history = model.fit(
         train_ds, 
         epochs=epochs, 
-        # callbacks=[tbCallBack], 
         validation_data=val_ds, 
         use_multiprocessing = True,
         workers = 11
@@ -209,7 +176,6 @@ def main():
     input_shape = (128, 128, 3)
     image_size = (128, 128)
     train_path = "/home/janneke/Documents/Image_analysis/image_analysis_eindopdracht/data/blood_cells/ALL/"
-    # train_path = "/home/janneke/Documents/Image_analysis/image_analysis_eindopdracht/data/rock_paper_scissors/train"
     eval_path = "/home/janneke/Documents/Image_analysis/image_analysis_eindopdracht/data/blood_cells/EVAL/"
     log_file = "training.log"
     with open(log_file, "w") as logs:
