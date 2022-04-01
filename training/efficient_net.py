@@ -1,8 +1,11 @@
 # https://neptune.ai/blog/how-to-build-a-light-weight-image-classifier-in-tensorflow-keras
 
 import os
+import time
+from datetime import datetime
 
 import cv2
+import numpy as np
 import tensorflow as tf
 import matplotlib.pyplot as plt
 from keras import Model
@@ -42,7 +45,7 @@ def preprocess_test(image_size, eval_path):
 
     for label in labels:
         for filename in os.listdir(f'{eval_path}{label}'):
-            if filename.split('.')[1] == "jpeg":
+            if filename.split('.')[1] == "jpg":
                 img = cv2.imread(f'{eval_path}{label}/{filename}')
                 
                 # Spliting file names and storing the labels for image in list
@@ -52,8 +55,17 @@ def preprocess_test(image_size, eval_path):
                 img = cv2.resize(img,image_size)
                 
                 x_test.append(img)
-    return x_test, y_test
+    
+    # return np.array(x_test), np.array(y_test).astype("float32")
 
+    eval_ds = tf.keras.preprocessing.image_dataset_from_directory(
+        eval_path,
+        seed=42,
+        image_size=image_size,
+        batch_size=32,
+    )
+    
+    return eval_ds, []
 
 def make_model(input_shape, dense_count, n_classes):
     backbone = EfficientNetB1(include_top = False,
@@ -121,7 +133,7 @@ def train(model: Model, train_ds, val_ds, epochs, save_dir, log_dir=None):
         )
 
     model.save(save_dir)
-    show_history(history)
+    train_acc_1, train_loss_1, val_acc_1, val_loss_1 = show_history(history)
 
     # unfreezing all layers in CNN
     for layer in model.layers:
@@ -135,10 +147,10 @@ def train(model: Model, train_ds, val_ds, epochs, save_dir, log_dir=None):
         use_multiprocessing = True,
         workers = 11
         )
-    show_history(history)
+    train_acc_2, train_loss_2, val_acc_2, val_loss_2 = show_history(history)
     model.save(save_dir)
     
-    return model
+    return model, train_acc_1, train_loss_1, val_acc_1, val_loss_1, train_acc_2, train_loss_2, val_acc_2, val_loss_2
 
 
 
@@ -165,6 +177,8 @@ def show_history(history):
     # plt.xlabel('epoch')
     # plt.legend(['train', 'test'], loc='upper left')
     # plt.savefig("loss_plot.png")
+    
+    return history.history['acc'], history.history['loss'], history.history['val_acc'], history.history['val_loss']
 
 
 def try_model(epochs, learning_rate, n_classes, dense_count, input_shape, image_size, train_path, eval_path, save_dir, log_dir = None):
@@ -174,13 +188,15 @@ def try_model(epochs, learning_rate, n_classes, dense_count, input_shape, image_
     model = unfreeze(model)
     model = compile_model(model, learning_rate)
     model.summary()
-    model = train(model, train_ds, val_ds, epochs, save_dir, log_dir)
+    model, train_acc_1, train_loss_1, val_acc_1, val_loss_1, train_acc_2, train_loss_2, val_acc_2, val_loss_2 = train(model, train_ds, val_ds, epochs, save_dir, log_dir)
 
     # Evaluating model on validation data
-    score = model.evaluate(x_test, y_test)
+    score = model.evaluate(x_test)
     print(f'Test loss: {score[0]}')
     print(f'Test accuracy: {score[1]}')
     print(f'Evaluation scores: {score}')
+    
+    return train_acc_1, train_loss_1, val_acc_1, val_loss_1, train_acc_2, train_loss_2, val_acc_2, val_loss_2, score[0], score[1]
     
 
 def main():
@@ -195,21 +211,23 @@ def main():
     train_path = "/home/janneke/Documents/Image_analysis/image_analysis_eindopdracht/data/blood_cells/ALL/"
     # train_path = "/home/janneke/Documents/Image_analysis/image_analysis_eindopdracht/data/rock_paper_scissors/train"
     eval_path = "/home/janneke/Documents/Image_analysis/image_analysis_eindopdracht/data/blood_cells/EVAL/"
+    log_file = "training.log"
+    with open(log_file, "w") as logs:
+        logs.write("datetime_start,training_time,epochs,learning_rate,repetition,train_data,train_acc_1,train_loss_1,val_acc_1,val_loss_1,train_acc_2,train_loss_2,val_acc_2,val_loss_2,test_loss,test_acc\n")
 
     for epoch_index, epochs in enumerate(epoch_options):
         for learning_rate_index, learning_rate in enumerate(learning_rate_options):
             for repetition in range(repetitions_per_model):
                 save_dir = f'/home/janneke/Documents/Image_analysis/image_analysis_eindopdracht/training/models_run2/efficient_net_model_{epoch_index}_{learning_rate_index}_{repetition}'
-
-                with open("models.txt", "a") as models_file:
+                
+                training_start = datetime.now()
+                training_start_time = time.time()
+                train_acc_1, train_loss_1, val_acc_1, val_loss_1, train_acc_2, train_loss_2, val_acc_2, val_loss_2, test_loss, test_acc = try_model(epochs, learning_rate, n_classes, dense_count, input_shape, image_size, train_path, eval_path, save_dir)
+                
+                with open(log_file, "a") as logs:
                     print(100*"-")
                     print(save_dir)
-                    models_file.write(f"\n{save_dir}\n")
-                    models_file.write(f"Epochs: {epochs}\n")
-                    models_file.write(f"Learning rate: {learning_rate}\n")
-                    models_file.write(f"Repetition: {repetition}\n")
-                    models_file.write(f"Train: {train_path}\n")
-                try_model(epochs, learning_rate, n_classes, dense_count, input_shape, image_size, train_path, eval_path, save_dir)
+                    logs.write(f'{training_start},{time.time()-training_start_time},{epochs},{learning_rate},{repetition},{train_path},{train_acc_1},{train_loss_1},{val_acc_1},{val_loss_1},{train_acc_2},{train_loss_2},{val_acc_2},{val_loss_2},{test_loss},{test_acc}\n')
 
 
 if __name__ == "__main__":
