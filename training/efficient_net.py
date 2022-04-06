@@ -1,13 +1,10 @@
 # https://neptune.ai/blog/how-to-build-a-light-weight-image-classifier-in-tensorflow-keras
 
-import os
 import time
 from datetime import datetime
 
-import cv2
-import numpy as np
 import tensorflow as tf
-import matplotlib.pyplot as plt
+from tensorflow.data import Dataset
 from keras import Model
 from keras.applications.efficientnet import EfficientNetB1
 from keras.layers import Dense, BatchNormalization, LeakyReLU, Softmax
@@ -15,7 +12,16 @@ from keras.models import Sequential
 from tensorflow.keras.optimizers import Adam
 
 
-def preprocess_data(image_size, train_path):
+def preprocess_data(image_size: tuple, train_path: str) -> Dataset:
+    """Preprocessing the training and validation data.
+
+    Args:
+        image_size (tuple): Image resolution to convert the images to.
+        train_path (str): Path to the training data.
+        
+    Returns:
+        Tuple[Dataset]: training data, validation data.
+    """
     batch_size = 32
 
     train_ds = tf.keras.preprocessing.image_dataset_from_directory(
@@ -38,7 +44,16 @@ def preprocess_data(image_size, train_path):
 
     return train_ds, val_ds
 
-def preprocess_test(image_size, test_path):
+def preprocess_test(image_size: tuple, test_path: str):
+    """Preprocess the test data.
+
+    Args:
+        image_size (tuple): Image resolution to convert the images to.
+        test_path (str): Path to the test data.
+
+    Returns:
+        Dataset: test data.
+    """
     test_ds = tf.keras.preprocessing.image_dataset_from_directory(
         test_path,
         seed=42,
@@ -48,7 +63,17 @@ def preprocess_test(image_size, test_path):
     
     return test_ds
 
-def make_model(input_shape, dense_count, n_classes):
+def make_model(input_shape: tuple[int], dense_count: int, n_classes: int) -> Model:
+    """Make the model.
+
+    Args:
+        input_shape (tuple[int]): Image resolution.
+        dense_count (int): Number of dense units for the dense layer.
+        n_classes (int): Number of classes the model will be trained with.
+
+    Returns:
+        Model: The model.
+    """
     backbone = EfficientNetB1(include_top = False,
                             input_shape = input_shape,
                             pooling = 'avg')
@@ -65,8 +90,16 @@ def make_model(input_shape, dense_count, n_classes):
     return model
 
 
-def unfreeze(model: Model):
-    block_to_unfreeze_from = 5
+def freeze(model: Model) -> Model:
+    """Freeze part of the model so during training not all parameters are tweaked.
+
+    Args:
+        model (Model): Model.
+
+    Returns:
+        Model: Model.
+    """
+    block_to_freeze_from = 5
     trainable_flag = False
 
     for layer in model.layers[0].layers:
@@ -75,14 +108,23 @@ def unfreeze(model: Model):
         else:
             layer.trainable = trainable_flag
             
-        if layer.name.find(f'block{block_to_unfreeze_from}') != -1:
+        if layer.name.find(f'block{block_to_freeze_from}') != -1:
             trainable_flag = True
             layer.trainable = trainable_flag
 
     return model
 
 
-def compile_model(model: Model, learning_rate) -> Model:
+def compile_model(model: Model, learning_rate: float) -> Model:
+    """Compile the model.
+
+    Args:
+        model (Model): Uncompiled model.
+        learning_rate (float): Learning rate for the model.
+
+    Returns:
+        Model: Model.
+    """
     model.compile(
         optimizer=Adam(learning_rate=learning_rate), 
         loss='sparse_categorical_crossentropy',
@@ -91,7 +133,22 @@ def compile_model(model: Model, learning_rate) -> Model:
     return model
 
 
-def train(model: Model, train_ds, val_ds, epochs, save_dir, log_dir=None):
+def train(model: Model, train_ds: Dataset, val_ds: Dataset, epochs: int, save_dir: str) -> tuple:
+    """Train the model in two phases.
+    The model is trained twice: Once where part of the 
+    parameters are frozen and once to finetune, 
+    where all parameters are tweakable.
+
+    Args:
+        model (Model): Model to train.
+        train_ds (Dataset): Training dataset.
+        val_ds (Dataset): Validation dataset.
+        epochs (int): Number of epochs during training.
+        save_dir (str): Save directory of the trained model.
+
+    Returns:
+        Tuple: Model and training metrics for logs
+    """
     history = model.fit(
         train_ds, 
         epochs=epochs, 
@@ -99,8 +156,6 @@ def train(model: Model, train_ds, val_ds, epochs, save_dir, log_dir=None):
         use_multiprocessing = True,
         workers = 11
         )
-
-    model.save(save_dir)
     train_acc_1, train_loss_1, val_acc_1, val_loss_1 = show_history(history)
 
     # unfreezing all layers in CNN
@@ -121,7 +176,15 @@ def train(model: Model, train_ds, val_ds, epochs, save_dir, log_dir=None):
 
 
 
-def show_history(history):
+def show_history(history) -> tuple:
+    """Extract training and validation metrics.
+
+    Args:
+        history (History): History object containing metrics.
+
+    Returns:
+        Tuple: Metrics.
+    """
     print(f"train_acc: {history.history['acc']}")
     print(f"val_acc: {history.history['val_acc']}")
     print(f"train_loss: {history.history['loss']}")
@@ -130,14 +193,31 @@ def show_history(history):
     return history.history['acc'], history.history['loss'], history.history['val_acc'], history.history['val_loss']
 
 
-def try_model(epochs, learning_rate, n_classes, dense_count, input_shape, image_size, train_path, test_path, save_dir, log_dir = None):
+def try_model(epochs: int, learning_rate: float, n_classes: int, dense_count: int, input_shape: tuple, image_size: tuple, train_path: str, test_path: str, save_dir: str) -> tuple:
+    """Process of preprocessing data, making, training 
+    and evaluating a model with one set of parameters.
+
+    Args:
+        epochs (int): Number of epochs during training.
+        learning_rate (float): Learning rate for the model.
+        n_classes (int): Number of classes the model will be trained with.
+        dense_count (int): Number of dense units for the dense layer.
+        input_shape (tuple): Image resolution.
+        image_size (tuple): Image resolution.
+        train_path (str): Path to the training data.
+        test_path (str): Path to the test data.
+        save_dir (str): Save directory of the trained model.
+
+    Returns:
+        tuple: Training, validation and test metrics.
+    """
     train_ds, val_ds = preprocess_data(image_size, train_path)
     test_ds = preprocess_test(image_size, test_path)
     model = make_model(input_shape, dense_count, n_classes)
-    model = unfreeze(model)
+    model = freeze(model)
     model = compile_model(model, learning_rate)
     model.summary()
-    model, train_acc_1, train_loss_1, val_acc_1, val_loss_1, train_acc_2, train_loss_2, val_acc_2, val_loss_2 = train(model, train_ds, val_ds, epochs, save_dir, log_dir)
+    model, train_acc_1, train_loss_1, val_acc_1, val_loss_1, train_acc_2, train_loss_2, val_acc_2, val_loss_2 = train(model, train_ds, val_ds, epochs, save_dir)
 
     # Evaluating model on validation data
     score = model.evaluate(test_ds)
