@@ -38,15 +38,15 @@ def preprocess_data(image_size, train_path):
 
     return train_ds, val_ds
 
-def preprocess_test(image_size, eval_path):
-    eval_ds = tf.keras.preprocessing.image_dataset_from_directory(
-        eval_path,
+def preprocess_test(image_size, test_path):
+    test_ds = tf.keras.preprocessing.image_dataset_from_directory(
+        test_path,
         seed=42,
         image_size=image_size,
         batch_size=32,
     )
     
-    return eval_ds, []
+    return test_ds
 
 def make_model(input_shape, dense_count, n_classes):
     backbone = EfficientNetB1(include_top = False,
@@ -126,31 +126,13 @@ def show_history(history):
     print(f"val_acc: {history.history['val_acc']}")
     print(f"train_loss: {history.history['loss']}")
     print(f"val_loss: {history.history['val_loss']}")
-    
-    # # summarize history for accuracy
-    # plt.plot(history.history['acc'])
-    # plt.plot(history.history['val_acc'])
-    # plt.title('model accuracy')
-    # plt.ylabel('accuracy')
-    # plt.xlabel('epoch')
-    # plt.legend(['train', 'test'], loc='upper left')
-    # plt.savefig("accuracy_plot.png")
 
-    # # summarize history for loss
-    # plt.plot(history.history['loss'])
-    # plt.plot(history.history['val_loss'])
-    # plt.title('model loss')
-    # plt.ylabel('loss')
-    # plt.xlabel('epoch')
-    # plt.legend(['train', 'test'], loc='upper left')
-    # plt.savefig("loss_plot.png")
-    
     return history.history['acc'], history.history['loss'], history.history['val_acc'], history.history['val_loss']
 
 
-def try_model(epochs, learning_rate, n_classes, dense_count, input_shape, image_size, train_path, eval_path, save_dir, log_dir = None):
+def try_model(epochs, learning_rate, n_classes, dense_count, input_shape, image_size, train_path, test_path, save_dir, log_dir = None):
     train_ds, val_ds = preprocess_data(image_size, train_path)
-    x_test, y_test = preprocess_test(image_size, eval_path)
+    test_ds = preprocess_test(image_size, test_path)
     model = make_model(input_shape, dense_count, n_classes)
     model = unfreeze(model)
     model = compile_model(model, learning_rate)
@@ -158,7 +140,7 @@ def try_model(epochs, learning_rate, n_classes, dense_count, input_shape, image_
     model, train_acc_1, train_loss_1, val_acc_1, val_loss_1, train_acc_2, train_loss_2, val_acc_2, val_loss_2 = train(model, train_ds, val_ds, epochs, save_dir, log_dir)
 
     # Evaluating model on validation data
-    score = model.evaluate(x_test)
+    score = model.evaluate(test_ds)
     print(f'Test loss: {score[0]}')
     print(f'Test accuracy: {score[1]}')
     print(f'Evaluation scores: {score}')
@@ -176,8 +158,8 @@ def main():
     input_shape = (128, 128, 3)
     image_size = (128, 128)
     train_path = "/home/janneke/Documents/Image_analysis/image_analysis_eindopdracht/data/blood_cells/ALL/"
-    eval_path = "/home/janneke/Documents/Image_analysis/image_analysis_eindopdracht/data/blood_cells/EVAL/"
-    log_file = "training.log"
+    test_path = "/home/janneke/Documents/Image_analysis/image_analysis_eindopdracht/data/blood_cells/EVAL/"
+    log_file = "training.log" # Will be overwritten
     with open(log_file, "w") as logs:
         logs.write("datetime_start,training_time,epochs,learning_rate,repetition,train_data,train_acc_1,train_loss_1,val_acc_1,val_loss_1,train_acc_2,train_loss_2,val_acc_2,val_loss_2,test_loss,test_acc\n")
 
@@ -188,7 +170,7 @@ def main():
                 
                 training_start = datetime.now()
                 training_start_time = time.time()
-                train_acc_1, train_loss_1, val_acc_1, val_loss_1, train_acc_2, train_loss_2, val_acc_2, val_loss_2, test_loss, test_acc = try_model(epochs, learning_rate, n_classes, dense_count, input_shape, image_size, train_path, eval_path, save_dir)
+                train_acc_1, train_loss_1, val_acc_1, val_loss_1, train_acc_2, train_loss_2, val_acc_2, val_loss_2, test_loss, test_acc = try_model(epochs, learning_rate, n_classes, dense_count, input_shape, image_size, train_path, test_path, save_dir)
                 
                 with open(log_file, "a") as logs:
                     print(100*"-")
