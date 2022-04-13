@@ -1,5 +1,3 @@
-# https://neptune.ai/blog/how-to-build-a-light-weight-image-classifier-in-tensorflow-keras
-
 import time
 from datetime import datetime
 
@@ -44,7 +42,7 @@ def preprocess_data(image_size: tuple, train_path: str) -> Dataset:
 
     return train_ds, val_ds
 
-def preprocess_test(image_size: tuple, test_path: str):
+def preprocess_test(image_size: tuple, test_path: str) -> Dataset:
     """Preprocess the test data.
 
     Args:

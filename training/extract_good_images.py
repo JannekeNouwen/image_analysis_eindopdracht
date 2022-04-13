@@ -1,7 +1,15 @@
 import os
 
 
-def get_labels(file_path):
+def get_labels(file_path: str) -> dict[str, str]:
+    """Gets the labels for every file number.
+
+    Args:
+        file_path (str): File path of the file containing the labels and the file numbers.
+
+    Returns:
+        dict[str, str]: Label for each file number.
+    """
     labels = {}
     with open(file_path) as file:
         file.readline()
@@ -14,7 +22,13 @@ def get_labels(file_path):
     return labels
                         
         
-def order_images(labels, image_folder):
+def order_images(labels: dict[str, str], image_folder: str):
+    """Moves files in folders for every label.
+
+    Args:
+        labels (dict[str, str]): Label for each file number.
+        image_folder (str): Folder containing all image files.
+    """
     for file in os.listdir(image_folder):
         if file.endswith(".jpg"):
             print(file)
